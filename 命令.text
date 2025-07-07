@@ -1,0 +1,5 @@
+虚拟环境:
+venv\Scripts\Activate.ps1
+
+运行:
+python code/auto_login.py        
