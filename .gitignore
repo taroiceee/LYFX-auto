@@ -1,2 +1,5 @@
 .venv
 venv
+*.log
+debug/
+auto_login.log
