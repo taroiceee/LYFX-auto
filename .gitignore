@@ -3,6 +3,9 @@ venv
 *.log
 *.ahk
 debug/
+app/__pycache__
+code/__pycache__
+app/pages/__pycache__
 auto_login.log
 debug/clicked_account_box_attempt1.png
 test.py

@@ -789,6 +789,48 @@ def main():
             time.sleep(delay)
 
 
+# 调用此脚本函数
+def autoL():
+    """
+    封装的自动登录主函数，供外部调用。
+    直接调用原有main()的核心登录逻辑。
+    """
+    # 这里复用main()里的账号读取和登录流程
+    # 但不使用argparse，直接执行登录流程
+
+    # 检查账号文件
+    ACCOUNTS_FILE = os.path.join(DATA_DIR, "accounts.csv")
+    if not os.path.exists(ACCOUNTS_FILE):
+        print(f"账号文件不存在: {ACCOUNTS_FILE}")
+        return False
+
+    with open(ACCOUNTS_FILE, "r", encoding="utf-8") as file:
+        reader = csv.reader(file)
+        accounts = list(reader)
+
+    total = len(accounts)
+    print(f"准备登录 {total} 个账号...")
+
+    # 遍历账号列表
+    for i, (username, password) in enumerate(accounts, 1):
+        print(f"\n===== 开始登录账号 {i}/{total}: {username} =====")
+
+        success = login_account(username, password)
+
+        if not success:
+            print(f"账号 {username} 登录失败，跳过...")
+            continue
+
+        if i < total:
+            delay = random_delay() * 3
+            print(f"等待 {delay:.2f} 秒后登录下一个账号...")
+            time.sleep(delay)
+
+    print("所有账号登录流程结束。")
+    return True
+
+
+# 独立运行此脚本(勿删)
 if __name__ == "__main__":
     print("脚本将在3秒后开始，请不要操作电脑...")
     time.sleep(3)
