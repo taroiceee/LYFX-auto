@@ -24,9 +24,11 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_DIR = os.path.join(os.path.dirname(ROOT_DIR), "image")
 DATA_DIR = os.path.join(os.path.dirname(ROOT_DIR), "data")
 OCR_DEBUG_DIR = os.path.join(os.path.dirname(ROOT_DIR), "debug/ocr")
+LOGS_DIR = os.path.join(os.path.dirname(ROOT_DIR), "logs")  # 新增日志目录
 
-# 创建OCR调试目录
+# 创建OCR调试目录和日志目录
 os.makedirs(OCR_DEBUG_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)  # 确保日志目录存在
 
 # 配置参数
 GAME_EXE_PATH = r"D:\新烈焰飞雪\烈焰飞雪\7hero.exe"  # 游戏可执行文件路径
@@ -50,6 +52,8 @@ IMAGE_PATHS = {
     "GAME_CONFIRM": os.path.join(IMAGE_DIR, "game_confirm.png"),
     "WENXINTISHI_TITLE": os.path.join(IMAGE_DIR, "wenxintishi_title.png"),
     "SHILINGTISHI": os.path.join(IMAGE_DIR, "shilingtishi.png"),
+    "ZHANGHAO": os.path.join(IMAGE_DIR, "zhanghao.png"),
+    "DIANJIZHUCE": os.path.join(IMAGE_DIR, "dianjizhuce.png"),
 }
 
 # OCR配置
@@ -69,9 +73,19 @@ TEMPLATE_CACHE = {}
 # 调试参数
 DELAY_MIN = 1.0
 DELAY_MAX = 2.5
-CONFIDENCE = 0.9  # 提高匹配阈值
+CONFIDENCE = 0.87  # 提高匹配阈值
 CARD_CONFIDENCE = 0.6
 LOADING_TIMEOUT = 5
+
+# 新增：登录结果记录，使用字典记录每个账号的失败步骤
+login_results = {"success": [], "failed": {}}  # 格式：{username: "失败步骤"}
+
+
+def record_failure(username, step):
+    """记录登录失败信息"""
+    login_results["failed"][username] = step
+    print(f"账号 {username} 登录失败: {step}")
+    return False
 
 
 def get_cached_template(template_path):
@@ -464,6 +478,11 @@ def input_account_password(username, password):
     """输入账号和密码"""
     # 定位账号输入框
     if not click_on_image(IMAGE_PATHS["ACCOUNT_BOX"]):
+        # 如果识别图片失败,就定位"账号"点击注册",计算之间的距离
+        # zh = find_image_on_screen(IMAGE_PATHS["ZHANGHAO"])
+        # djzc = find_image_on_screen(IMAGE_PATHS["DIANJIZHUCE"])
+        # print("zh", zh)
+        # print("djzc", djzc)
         return False
 
     # 清空输入框
@@ -564,7 +583,7 @@ def login_account(username, password):
     # 1. 通过文件路径启动游戏
     print("步骤1: 启动游戏...")
     if not start_game():
-        return False
+        return record_failure(username, "启动游戏失败")
 
     # 等待游戏窗口出现
     max_attempts = 10
@@ -576,15 +595,15 @@ def login_account(username, password):
         time.sleep(2)
     else:
         print("未检测到游戏窗口，登录下一账号...")
-        return False
+        return record_failure(username, "未检测到游戏窗口")
 
     # 2. 点击"进入游戏"按钮
     print("步骤2: 进入游戏...")
     if not wait_for_image(IMAGE_PATHS["ENTER_GAME"]):
-        return False
+        return record_failure(username, "未找到'进入游戏'按钮")
 
     if not click_on_image(IMAGE_PATHS["ENTER_GAME"]):
-        return False
+        return record_failure(username, "点击'进入游戏'按钮失败")
 
     # 3. 点击"确认选择"按钮
     print("步骤3: 检查服务器")
@@ -598,16 +617,16 @@ def login_account(username, password):
             break  # 跳出循环，继续执行后续步骤
         elif result is False:
             print("查找过程中出现错误，退出")
-            return False
+            return record_failure(username, "查找服务器过程中出现错误")
         else:
             print(f"第{attempts+1}次尝试超时，进行手动更新")
             if not handle_update():
                 print("手动更新失败，退出")
-                return False
+                return record_failure(username, "手动更新服务器失败")
             attempts += 1
     else:
         print(f"达到最大尝试次数{max_attempts}，仍未检测到服务器，退出")
-        return False
+        return record_failure(username, "检测服务器超时")
 
     # 4. 等待进度条加载完毕，点击"开始游戏"
     print("步骤4: 等待加载并开始游戏...")
@@ -629,18 +648,18 @@ def login_account(username, password):
             start_game_button = find_image_on_screen(IMAGE_PATHS["START_GAME"])
             if not start_game_button:
                 print(f"1.未找到更新完成")
-                return False
+                return record_failure(username, "未找到'开始游戏'按钮")
 
             if not click_on_image(IMAGE_PATHS["START_GAME"]):
                 print(f"2.未点击进入游戏")
-                return False
+                return record_failure(username, "点击'开始游戏'按钮失败")
             break
         else:
             print("未找到 '更新完成'，继续查找...")
             time.sleep(2)  # 等待2秒后再次查找
     else:  # while循环超时后执行
         print("超时30秒未检测到 '更新完成'")
-        return False  # 超时返回失败
+        return record_failure(username, "等待更新完成超时")
 
     # === 步骤5：点击“是(进入按钮)” ===
     # 温馨提示窗口不适用pyautogui.moveTo,应该用低级的移动方法
@@ -663,31 +682,26 @@ def login_account(username, password):
 
     if not window_found:
         print("超时30秒未找到‘温馨提示’窗口，无法继续操作")
-        return False
+        return record_failure(username, "未找到‘温馨提示’窗口")
 
     if not click_on_game_element(IMAGE_PATHS["YES_BUTTON"], "温馨提示", "是(进入)"):
         print("点击'是'按钮失败")
-        return False
-
-    # print("-->click_on_image")
-    # if not click_on_image(IMAGE_PATHS["YES_BUTTON"]):
-    #     print("点击'是'按钮失败")
-    #     return False
+        return record_failure(username, "点击'是(进入)'按钮失败")
 
     # 6. 点击"确认"按钮
     print("步骤6: 点击确认...")
     if not click_on_image(IMAGE_PATHS["CONFIRM_BUTTON"]):
-        return False
+        return record_failure(username, "点击'确认'按钮失败")
 
     # 7. 输入账号和密码
     print("步骤7: 输入账号密码...")
     if not input_account_password(username, password):
-        return False
+        return record_failure(username, "输入账号密码失败")
 
     # 8. 等待登录完成，选择第一个卡牌
     print("步骤8: 选择第一个卡牌...")
     if not select_first_card():
-        return False
+        return record_failure(username, "选择第一个卡牌失败")
 
     # 9. 如果游戏界面有确定按钮,点击确定
     print("步骤9: 检测游戏界面")
@@ -706,6 +720,10 @@ def login_account(username, password):
     print("步骤10: 已登录,即将缩小窗口")
     result = minimize_current_window()
     print(f"窗口最小化{'成功' if result else '失败'}")
+
+    # 记录登录成功
+    login_results["success"].append(username)
+    print(f"账号 {username} 登录成功!")
     return True
 
 
@@ -746,6 +764,59 @@ def get_mouse_position():
         return x, y
 
 
+def save_login_results():
+    """保存登录结果到日志文件"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join(LOGS_DIR, f"login_results_{timestamp}.txt")
+
+    with open(log_file, "w", encoding="utf-8") as f:
+        f.write("=" * 50 + "\n")
+        f.write(f"登录结果统计 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write("=" * 50 + "\n\n")
+
+        f.write("成功登录的账号:\n")
+        f.write("-" * 30 + "\n")
+        for idx, account in enumerate(login_results["success"], 1):
+            f.write(f"{idx}. {account}\n")
+        f.write(f"\n成功总数: {len(login_results['success'])}\n\n")
+
+        f.write("登录失败的账号:\n")
+        f.write("-" * 30 + "\n")
+        for idx, (account, step) in enumerate(login_results["failed"].items(), 1):
+            f.write(f"{idx}. {account} - 失败步骤: {step}\n")
+        f.write(f"\n失败总数: {len(login_results['failed'])}\n\n")
+
+        f.write("=" * 50 + "\n")
+        f.write(
+            f"总账号数: {len(login_results['success']) + len(login_results['failed'])}\n"
+        )
+
+    print(f"\n登录结果已保存至: {log_file}")
+
+
+def print_login_summary():
+    """打印登录结果摘要"""
+    print("\n" + "=" * 50)
+    print("登录结果统计")
+    print("=" * 50)
+
+    print("\n成功登录的账号:")
+    print("-" * 30)
+    for idx, account in enumerate(login_results["success"], 1):
+        print(f"{idx}. {account}")
+    print(f"\n成功总数: {len(login_results['success'])}")
+
+    print("\n登录失败的账号:")
+    print("-" * 30)
+    for idx, (account, step) in enumerate(login_results["failed"].items(), 1):
+        print(f"{idx}. {account} - 失败步骤: {step}")
+    print(f"\n失败总数: {len(login_results['failed'])}")
+
+    print("\n" + "=" * 50)
+    print(f"总账号数: {len(login_results['success']) + len(login_results['failed'])}")
+    print("=" * 50 + "\n")
+
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="游戏自动登录脚本")
@@ -781,12 +852,50 @@ def main():
     for i, (username, password) in enumerate(accounts, 1):
         print(f"\n===== 开始登录账号 {i}/{total}: {username} =====")
 
-        success = login_account(username, password)
+        # 当前账号连续20次失败就终止脚本
 
-        if success and i < total:
+        max_attempts = 20  # 每个账号最多尝试20次
+        consecutive_failures = 0  # 连续失败次数
+
+        while consecutive_failures < max_attempts:
+            success = login_account(username, password)
+
+            if success:
+                print(f"账号 {username} 登录成功，准备下一个账号")
+                break  # 成功登录，跳出重试循环
+            else:
+                consecutive_failures += 1
+                print(f"账号 {username} 第 {consecutive_failures} 次登录失败")
+
+                if consecutive_failures < max_attempts:
+                    # 关闭当前游戏窗口
+                    if activate_window("烈焰飞雪：征战[1服-锐不可当](VER:1.2.2153)"):
+                        print("关闭游戏窗口...")
+                        pyautogui.hotkey("alt", "f4")  # 发送Alt+F4关闭窗口
+                        time.sleep(3)  # 等待3秒
+
+                    print(f"将在 {LOADING_TIMEOUT} 秒后重试...")
+                    time.sleep(LOADING_TIMEOUT)
+                else:
+                    print(
+                        f"账号 {username} 连续 {max_attempts} 次登录失败，终止所有账号的登录"
+                    )
+                    # 打印登录结果摘要
+                    print_login_summary()
+                    # 保存登录结果到日志文件
+                    save_login_results()
+                    return  # 终止所有账号的登录
+
+        # 账号成功登录或者达到最大重试次数后，等待一段时间再处理下一个账号
+        if consecutive_failures < max_attempts and i < total:
             delay = random_delay() * 3
             print(f"等待 {delay:.2f} 秒后登录下一个账号...")
             time.sleep(delay)
+
+    # 打印登录结果摘要
+    print_login_summary()
+    # 保存登录结果到日志文件
+    save_login_results()
 
 
 # 调用此脚本函数
@@ -795,6 +904,10 @@ def autoL():
     封装的自动登录主函数，供外部调用。
     直接调用原有main()的核心登录逻辑。
     """
+    # 重置登录结果
+    global login_results
+    login_results = {"success": [], "failed": {}}
+
     # 这里复用main()里的账号读取和登录流程
     # 但不使用argparse，直接执行登录流程
 
@@ -826,7 +939,12 @@ def autoL():
             print(f"等待 {delay:.2f} 秒后登录下一个账号...")
             time.sleep(delay)
 
-    print("所有账号登录流程结束。")
+    # 打印登录结果摘要
+    print_login_summary()
+
+    # 保存登录结果到日志文件
+    save_login_results()
+
     return True
 
 

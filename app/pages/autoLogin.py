@@ -1,6 +1,6 @@
 import tkinter as tk
 from threading import Thread
-from code.auto_login import autoL  # 导入autoL函数
+from code.auto_login import main  # 导入main函数
 
 root = tk.Tk()
 root.title("账号执行工具")
@@ -63,16 +63,16 @@ note_label.grid(row=5, column=2, padx=5, sticky=tk.W)
 
 
 # 操作按钮
-def run_autoL_thread():
+def run_main_thread():
     def task():
-        log_text.insert(tk.END, "开始执行autoL...\n")
+        log_text.insert(tk.END, "开始执行main...\n")
         log_text.see(tk.END)
         try:
-            result = autoL()
+            result = main()
             if result:
-                log_text.insert(tk.END, "autoL执行完成，成功！\n")
+                log_text.insert(tk.END, "main执行完成，成功！\n")
             else:
-                log_text.insert(tk.END, "autoL执行失败！\n")
+                log_text.insert(tk.END, "main执行失败！\n")
         except Exception as e:
             log_text.insert(tk.END, f"执行出错: {e}\n")
         log_text.see(tk.END)
@@ -80,7 +80,7 @@ def run_autoL_thread():
     Thread(target=task, daemon=True).start()
 
 
-start_btn = tk.Button(root, text="开始执行", width=10, command=run_autoL_thread)
+start_btn = tk.Button(root, text="开始执行", width=10, command=run_main_thread)
 start_btn.grid(row=1, column=0, padx=5, pady=5)
 
 pause_btn = tk.Button(root, text="暂停", width=10)

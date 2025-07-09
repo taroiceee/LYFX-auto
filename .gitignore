@@ -9,4 +9,7 @@ app/pages/__pycache__
 auto_login.log
 debug/clicked_account_box_attempt1.png
 test.py
+logs
+logs/
+.logs
 
