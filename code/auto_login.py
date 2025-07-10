@@ -15,6 +15,11 @@ import pydirectinput
 import pygetwindow as gw
 import pytesseract
 from datetime import datetime
+from threading import Event, Event
+
+# 新增：控制变量
+pause_event = Event()  # 用于暂停/继续
+stop_flag = Event()  # 用于终止
 
 # 禁用安全特性
 pyautogui.FAILSAFE = False
@@ -81,8 +86,30 @@ LOADING_TIMEOUT = 5
 login_results = {"success": [], "failed": {}}  # 格式：{username: "失败步骤"}
 
 
+# 新增：检查暂停和终止状态的函数
+def check_pause_and_stop():
+    """检查是否需要暂停或终止执行"""
+    # 检查终止标志
+    if stop_flag.is_set():
+        print("检测到终止信号，正在退出...")
+        return False
+
+    # 检查暂停状态：如果pause_event被设置，则阻塞等待（直到被清除）
+    while pause_event.is_set():  # 循环检查，确保暂停状态持续
+        if stop_flag.is_set():  # 暂停时也能响应终止
+            print("检测到终止信号，正在退出...")
+            return False
+        print("程序已暂停，点击'暂停'按钮恢复执行...")
+        time.sleep(1)  # 循环等待，避免CPU占用过高
+
+    return True
+
+
 def record_failure(username, step):
     """记录登录失败信息"""
+    if not check_pause_and_stop():
+        return False
+
     login_results["failed"][username] = step
     print(f"账号 {username} 登录失败: {step}")
     return False
@@ -90,6 +117,9 @@ def record_failure(username, step):
 
 def get_cached_template(template_path):
     """获取缓存的模板图像，避免重复加载"""
+    if not check_pause_and_stop():
+        return None
+
     if template_path not in TEMPLATE_CACHE:
         TEMPLATE_CACHE[template_path] = cv2.imread(template_path, cv2.IMREAD_COLOR)
     return TEMPLATE_CACHE[template_path]
@@ -97,6 +127,9 @@ def get_cached_template(template_path):
 
 def click_at(x, y):
     """使用Windows API模拟鼠标点击"""
+    if not check_pause_and_stop():
+        return
+
     # 获取屏幕尺寸
     screen_width = ctypes.windll.user32.GetSystemMetrics(0)
     screen_height = ctypes.windll.user32.GetSystemMetrics(1)
@@ -122,6 +155,9 @@ def click_at(x, y):
 
 def activate_window(title: str):
     """激活指定标题的窗口"""
+    if not check_pause_and_stop():
+        return False
+
     hwnd = win32gui.FindWindow(None, title)
     if hwnd != 0:
         # 如果窗口最小化，则恢复
@@ -135,11 +171,17 @@ def activate_window(title: str):
 
 def random_delay():
     """生成随机延迟，避免操作过于机械"""
+    if not check_pause_and_stop():
+        return 0
+
     return random.uniform(DELAY_MIN, DELAY_MAX)
 
 
 def ocr_text(image_path, lang=OCR_LANGUAGE):
     """使用OCR识别图像中的文字"""
+    if not check_pause_and_stop():
+        return ""
+
     if not os.path.exists(image_path):
         return ""
 
@@ -158,6 +200,9 @@ def find_image_on_screen(
     template_path, threshold=CONFIDENCE, save_debug=True, color_filter=None
 ):
     """在屏幕上查找指定图像，结合多种匹配方式，支持颜色过滤"""
+    if not check_pause_and_stop():
+        return None
+
     if not os.path.exists(template_path):
         print(f"模板文件不存在: {template_path}")
         return None
@@ -250,6 +295,9 @@ def find_image_on_screen(
 
 def find_text_on_screen(target_text, template_path=None, threshold=CONFIDENCE):
     """先模板匹配定位区域，再用OCR识别文字"""
+    if not check_pause_and_stop():
+        return None
+
     # 1. 模板匹配定位大致区域
     pos = find_image_on_screen(template_path, threshold)
     if not pos:
@@ -284,6 +332,9 @@ def find_text_on_screen(target_text, template_path=None, threshold=CONFIDENCE):
 
 def click_on_image(template_path, click_count=1, button="left", max_attempts=2):
     """查找并点击指定图像，支持重试机制"""
+    if not check_pause_and_stop():
+        return False
+
     for attempt in range(max_attempts):
         pos = find_image_on_screen(template_path)
 
@@ -311,6 +362,9 @@ def click_on_image_with_ocr(
     template_path, target_text, click_count=1, button="left", max_attempts=2
 ):
     """结合模板匹配和OCR的点击函数"""
+    if not check_pause_and_stop():
+        return False
+
     for attempt in range(max_attempts):
         pos = find_text_on_screen(target_text, template_path)
 
@@ -342,6 +396,9 @@ def wait_for_image(template_path, timeout=LOADING_TIMEOUT, threshold=CONFIDENCE)
     start_time = time.time()
 
     while time.time() - start_time < timeout:
+        if not check_pause_and_stop():
+            return None
+
         pos = find_image_on_screen(template_path, threshold)
         if pos:
             return pos
@@ -354,6 +411,9 @@ def wait_for_image(template_path, timeout=LOADING_TIMEOUT, threshold=CONFIDENCE)
 
 def get_window_rect(title):
     """获取窗口位置和大小"""
+    if not check_pause_and_stop():
+        return None
+
     hwnd = win32gui.FindWindow(None, title)
     if hwnd == 0:
         return None
@@ -371,6 +431,9 @@ def click_on_game_element(template_path, window_title=GAME_TITLE, target_text=No
     print(
         f"尝试点击游戏元素: {template_path}, 窗口: {window_title}, 目标文本: {target_text}"
     )
+
+    if not check_pause_and_stop():
+        return False
 
     # 激活窗口
     if not activate_window(window_title):
@@ -424,11 +487,17 @@ def click_on_game_element(template_path, window_title=GAME_TITLE, target_text=No
 def find_card_area():
     """查找卡牌选择区域"""
     print("查找卡牌区域...")
+    if not check_pause_and_stop():
+        return None
+
     return find_image_on_screen(IMAGE_PATHS["CARD_AREA"], CARD_CONFIDENCE)
 
 
 def select_first_card():
     """选择第一个卡牌（通过相对位置）"""
+    if not check_pause_and_stop():
+        return False
+
     card_area = find_card_area()
 
     if not card_area:
@@ -458,6 +527,9 @@ def select_first_card():
 def type_text(text, interval=0.05):
     """模拟键盘输入文本"""
     print(f"输入文本: {text}")
+    if not check_pause_and_stop():
+        return
+
     pyautogui.typewrite(text, interval=interval)
     delay = random_delay() * 0.5
     print(f"输入后等待: {delay:.2f}秒")
@@ -466,6 +538,9 @@ def type_text(text, interval=0.05):
 
 def clear_input_box():
     """清空输入框内容"""
+    if not check_pause_and_stop():
+        return
+
     for _ in range(10):
         pyautogui.press("backspace")
         time.sleep(0.02)
@@ -476,6 +551,9 @@ def clear_input_box():
 
 def input_account_password(username, password):
     """输入账号和密码"""
+    if not check_pause_and_stop():
+        return False
+
     # 定位账号输入框
     if not click_on_image(IMAGE_PATHS["ACCOUNT_BOX"]):
         # 如果识别图片失败,就定位"账号"点击注册",计算之间的距离
@@ -508,6 +586,9 @@ def input_account_password(username, password):
 
 def start_game():
     """通过文件路径启动游戏"""
+    if not check_pause_and_stop():
+        return False
+
     try:
         if not os.path.exists(GAME_EXE_PATH):
             print(f"游戏文件不存在: {GAME_EXE_PATH}")
@@ -524,6 +605,9 @@ def start_game():
 
 def minimize_current_window():
     """最小化当前活动窗口"""
+    if not check_pause_and_stop():
+        return False
+
     try:
         # 等待一小段时间确保窗口已激活
         time.sleep(1)
@@ -539,6 +623,9 @@ def minimize_current_window():
 # 手动更新服务器
 def handle_update():
     """处理服务器手动更新"""
+    if not check_pause_and_stop():
+        return False
+
     # 查找手动更新按钮并点击
     if not click_on_image(IMAGE_PATHS["HANDLE_SELECT"]):
         print("点击handle_select失败")
@@ -558,6 +645,9 @@ def find_server(timeout=10, interval=1):
     """尝试在timeout秒内查找服务器，每interval秒查找一次"""
     start_time = time.time()
     while time.time() - start_time < timeout:
+        if not check_pause_and_stop():
+            return None
+
         server_pos = find_image_on_screen(IMAGE_PATHS["SERVER_1"])
         if server_pos:
             if not click_on_image(IMAGE_PATHS["CONFIRM_SELECT"]):
@@ -579,6 +669,8 @@ def find_server(timeout=10, interval=1):
 
 def login_account(username, password):
     """登录单个账号的完整流程"""
+    if not check_pause_and_stop():
+        return False
 
     # 1. 通过文件路径启动游戏
     print("步骤1: 启动游戏...")
@@ -588,6 +680,9 @@ def login_account(username, password):
     # 等待游戏窗口出现
     max_attempts = 10
     for attempt in range(max_attempts):
+        if not check_pause_and_stop():
+            return False
+
         hwnd = win32gui.FindWindow(None, GAME_TITLE)
         if hwnd != 0:
             print("已检测到游戏窗口")
@@ -611,6 +706,9 @@ def login_account(username, password):
     attempts = 0
 
     while attempts < max_attempts:
+        if not check_pause_and_stop():
+            return False
+
         result = find_server(timeout=30, interval=2)
         if result is True:
             print("服务器检测成功")
@@ -638,6 +736,9 @@ def login_account(username, password):
     print(f"1.查找更新完成进度条{finish_update}")
 
     while time.time() - start_time < 30:
+        if not check_pause_and_stop():
+            return False
+
         finish_update = find_image_on_screen(IMAGE_PATHS["FINISH_UPDATE"])
         print(f"2.查找更新完成进度条{finish_update}")
 
@@ -671,6 +772,9 @@ def login_account(username, password):
     window_found = False
 
     while time.time() - start_time < 30:
+        if not check_pause_and_stop():
+            return False
+
         if activate_window("温馨提示"):
             window_found = True
             print("已找到‘温馨提示’窗口,开始查找按钮")
@@ -729,6 +833,9 @@ def login_account(username, password):
 
 def test_image_recognition(image_name):
     """测试单个图像识别功能"""
+    if not check_pause_and_stop():
+        return
+
     if image_name in IMAGE_PATHS:
         image_path = IMAGE_PATHS[image_name]
     else:
@@ -756,6 +863,9 @@ def get_mouse_position():
     print("将鼠标移动到目标位置，按Ctrl+C停止...")
     try:
         while True:
+            if not check_pause_and_stop():
+                break
+
             x, y = pyautogui.position()
             print(f"当前坐标: ({x}, {y})", end="\r")
             time.sleep(0.1)
@@ -766,6 +876,9 @@ def get_mouse_position():
 
 def save_login_results():
     """保存登录结果到日志文件"""
+    if not check_pause_and_stop():
+        return
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(LOGS_DIR, f"login_results_{timestamp}.txt")
 
@@ -796,6 +909,9 @@ def save_login_results():
 
 def print_login_summary():
     """打印登录结果摘要"""
+    if not check_pause_and_stop():
+        return
+
     print("\n" + "=" * 50)
     print("登录结果统计")
     print("=" * 50)
@@ -850,14 +966,23 @@ def main():
 
     # 遍历账号列表
     for i, (username, password) in enumerate(accounts, 1):
+        # 检查终止标志
+        if stop_flag.is_set():
+            print("检测到终止信号，正在退出...")
+            break
+
         print(f"\n===== 开始登录账号 {i}/{total}: {username} =====")
 
         # 当前账号连续20次失败就终止脚本
-
         max_attempts = 20  # 每个账号最多尝试20次
         consecutive_failures = 0  # 连续失败次数
 
         while consecutive_failures < max_attempts:
+            # 检查终止标志
+            if stop_flag.is_set():
+                print("检测到终止信号，正在退出...")
+                break
+
             success = login_account(username, password)
 
             if success:
@@ -880,11 +1005,12 @@ def main():
                     print(
                         f"账号 {username} 连续 {max_attempts} 次登录失败，终止所有账号的登录"
                     )
-                    # 打印登录结果摘要
-                    print_login_summary()
-                    # 保存登录结果到日志文件
-                    save_login_results()
-                    return  # 终止所有账号的登录
+                    break  # 跳出账号重试循环
+
+        # 检查终止标志
+        if stop_flag.is_set():
+            print("检测到终止信号，正在退出...")
+            break
 
         # 账号成功登录或者达到最大重试次数后，等待一段时间再处理下一个账号
         if consecutive_failures < max_attempts and i < total:
@@ -896,6 +1022,12 @@ def main():
     print_login_summary()
     # 保存登录结果到日志文件
     save_login_results()
+
+    # 重置控制变量
+    pause_event.clear()
+    stop_flag.clear()
+
+    return True
 
 
 # 独立运行此脚本(勿删)

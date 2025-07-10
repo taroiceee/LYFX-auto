@@ -1,6 +1,6 @@
 import ttkbootstrap as ttkb
-from threading import Thread
-from code.auto_login import main  # 导入main函数
+from threading import Thread, Event
+from code.auto_login import main, pause_event, stop_flag  # 导入main函数和控制变量
 import tkinter as tk
 
 # 自带主题样式
@@ -99,6 +99,9 @@ for i in range(5):
     log_fail_frame.columnconfigure(i, weight=1)
 log_fail_frame.rowconfigure(1, weight=1)
 
+# 全局变量记录暂停状态
+is_paused = False
+
 
 # 操作按钮
 def run_main_thread():
@@ -106,6 +109,10 @@ def run_main_thread():
         log_text.insert(tk.END, "开始执行main...\n")
         log_text.see(tk.END)
         try:
+            # 重置控制变量
+            pause_event.clear()
+            stop_flag.clear()
+
             result = main()
             if result:
                 log_text.insert(tk.END, "main执行完成，成功！\n")
@@ -118,6 +125,48 @@ def run_main_thread():
     Thread(target=task, daemon=True).start()
 
 
+# 暂停按钮回调
+def pause_execution():
+    if pause_event.is_set():
+        pause_event.clear()
+        log_text.insert(tk.END, "继续执行...\n")
+        pause_btn.configure(text="暂停")
+    else:
+        pause_event.set()
+        log_text.insert(tk.END, "已暂停执行...\n")
+        pause_btn.configure(text="继续")
+    log_text.see(tk.END)
+
+
+def toggle_pause():
+    global is_paused
+    from code.auto_login import pause_event  # 导入auto_login中的pause_event
+
+    if is_paused:
+        # 当前是暂停状态，恢复执行
+        pause_event.clear()  # 清除暂停信号
+        is_paused = False
+        pause_btn.configure(text="暂停")  # 更新按钮文本
+        log_text.insert(tk.END, "已恢复执行...\n")
+    else:
+        # 当前是运行状态，暂停执行
+        pause_event.set()  # 设置暂停信号
+        is_paused = True
+        pause_btn.configure(text="继续")  # 更新按钮文本
+        log_text.insert(tk.END, "已暂停执行...\n")
+    log_text.see(tk.END)
+
+
+# 终止按钮回调
+def stop_execution():
+    stop_flag.set()
+    # 如果处于暂停状态，先恢复执行以便线程能检测到终止信号
+    if pause_event.is_set():
+        pause_event.clear()
+    log_text.insert(tk.END, "正在终止执行...\n")
+    log_text.see(tk.END)
+
+
 # 创建按钮容器框架，放在root的第1行第0列，跨6列，居中显示
 button_frame = ttkb.Frame(root)
 button_frame.grid(row=1, column=0, columnspan=6, pady=5)
@@ -126,8 +175,13 @@ button_frame.grid(row=1, column=0, columnspan=6, pady=5)
 start_btn = ttkb.Button(
     button_frame, text="开始执行", width=10, command=run_main_thread
 )
-pause_btn = ttkb.Button(button_frame, text="暂停", width=10, style="Outline.TButton")
-stop_btn = ttkb.Button(button_frame, text="终止", width=10, style="Outline.TButton")
+# 修改暂停按钮的command绑定
+pause_btn = ttkb.Button(
+    button_frame, text="暂停", width=10, style="Outline.TButton", command=toggle_pause
+)
+stop_btn = ttkb.Button(
+    button_frame, text="终止", width=10, style="Outline.TButton", command=stop_execution
+)
 
 start_btn.grid(row=0, column=0, padx=10)
 pause_btn.grid(row=0, column=1, padx=10)
