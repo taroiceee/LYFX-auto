@@ -106,7 +106,7 @@ is_paused = False
 # 操作按钮
 def run_main_thread():
     def task():
-        log_text.insert(tk.END, "开始执行main...\n")
+        log_text.insert(tk.END, "开始执行\n")
         log_text.see(tk.END)
         try:
             # 重置控制变量
