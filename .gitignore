@@ -3,6 +3,8 @@ venv
 *.log
 *.ahk
 debug/
+debug
+debug/ocr/
 app/__pycache__
 code/__pycache__
 app/pages/__pycache__

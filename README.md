@@ -24,4 +24,7 @@ python code/auto_login.py
 python -m app.pages.autoLogin
 
 
+4.查看ttkbootstrap主题
+python -m ttkbootstrap
+
 

@@ -1,21 +1,28 @@
-import tkinter as tk
+import ttkbootstrap as ttkb
 from threading import Thread
 from code.auto_login import main  # 导入main函数
+import tkinter as tk
 
-root = tk.Tk()
+# 自带主题样式
+# 查看ttkbootstrap主题
+# python -m ttkbootstrap
+root = ttkb.Window(themename="morph")
 root.title("账号执行工具")
 
-# 输入区域
-input_frame = tk.Frame(root)
-input_frame.grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky=tk.W)
+# 输入账号密码区域
+input_frame = ttkb.Frame(root)
+input_frame.grid(row=0, column=0, columnspan=6, padx=5, pady=5, sticky="ew")
 
-input_label = tk.Label(input_frame, text="账号+密码输入区", justify=tk.LEFT)
-input_label.pack(anchor=tk.W)
+input_label = ttkb.Label(input_frame, text="账号+密码输入区", justify="left")
+input_label.grid(row=0, column=0, sticky="w")
 
-input_text = tk.Text(input_frame, height=5, width=50)
-input_text.pack()
+input_text = tk.Text(input_frame, height=5)
+input_text.grid(row=1, column=0, sticky="nsew")
 
-# 提示语处理
+# 让input_frame的第0列扩展，input_text宽度自适应
+input_frame.columnconfigure(0, weight=1)
+input_frame.rowconfigure(1, weight=1)
+
 placeholder_text = (
     "在此输入所有账号+密码,每组账号以分号分开,示例:\naa+123;bbb+666;ccc+000"
 )
@@ -38,28 +45,59 @@ def on_focusout(event):
 input_text.bind("<FocusIn>", on_input)
 input_text.bind("<FocusOut>", on_focusout)
 
-# 执行日志区
-log_label = tk.Label(root, text="执行日志")
-log_label.grid(row=2, column=0, padx=5, sticky=tk.W)
+# 创建日志和失败区的容器框架，方便布局
+log_fail_frame = ttkb.Frame(root)
+log_fail_frame.grid(row=2, column=0, columnspan=6, padx=5, pady=5, sticky="ew")
 
-log_text = tk.Text(root, height=8, width=30)
-log_text.grid(row=3, column=0, padx=5, pady=5, rowspan=2)
+# 第一行标签区域，5个标签放在同一行
+log_label = ttkb.Label(log_fail_frame, text="执行日志", font=("微软雅黑", 10, "bold"))
+log_label.grid(row=0, column=0, padx=(0, 10), sticky="w")
 
-# 进度与失败区
-progress_label = tk.Label(root, text="执行进度：100%")
-progress_label.grid(row=2, column=1, padx=5, sticky=tk.W)
+progress_label = ttkb.Label(
+    log_fail_frame, text="执行进度：100%", font=("微软雅黑", 10, "bold")
+)
+progress_label.grid(row=0, column=1, padx=(0, 10), sticky="w")
 
-fail_label = tk.Label(root, text="失败账号")
-fail_label.grid(row=2, column=2, padx=5, sticky=tk.W)
+fail_label = ttkb.Label(log_fail_frame, text="失败账号", font=("微软雅黑", 10, "bold"))
+fail_label.grid(row=0, column=2, padx=(20, 0), sticky="w")
 
-copy_btn = tk.Button(root, text="复制文本", width=8)
-copy_btn.grid(row=3, column=2, padx=5, sticky=tk.W)
+copy_btn = ttkb.Button(
+    log_fail_frame, text="复制文本", width=8, style="Outline.TButton"
+)
+copy_btn.grid(row=0, column=3, padx=(0, 0))
 
-fail_text = tk.Text(root, height=8, width=30)
-fail_text.grid(row=4, column=2, padx=5, pady=5)
+note_label = ttkb.Label(
+    log_fail_frame, text="后粘贴至上方重新执行", font=("微软雅黑", 9)
+)
+note_label.grid(row=0, column=4, padx=(0, 10), sticky="w")
 
-note_label = tk.Label(root, text="后粘贴至上方重新执行")
-note_label.grid(row=5, column=2, padx=5, sticky=tk.W)
+# 第二行文本框区域，日志区和失败区并排
+log_text = tk.Text(
+    log_fail_frame,
+    height=8,
+    width=50,
+    bg="#f0f0f0",
+    fg="#333333",
+    relief="sunken",
+    bd=2,
+)
+log_text.grid(row=1, column=0, columnspan=2, padx=(0, 10), pady=5, sticky="nsew")
+
+fail_text = tk.Text(
+    log_fail_frame,
+    height=8,
+    width=50,
+    bg="#fff0f0",
+    fg="#a00000",
+    relief="sunken",
+    bd=2,
+)
+fail_text.grid(row=1, column=2, columnspan=3, padx=(10, 0), pady=5, sticky="nsew")
+
+# 让文本框区域横向扩展
+for i in range(5):
+    log_fail_frame.columnconfigure(i, weight=1)
+log_fail_frame.rowconfigure(1, weight=1)
 
 
 # 操作按钮
@@ -80,13 +118,26 @@ def run_main_thread():
     Thread(target=task, daemon=True).start()
 
 
-start_btn = tk.Button(root, text="开始执行", width=10, command=run_main_thread)
-start_btn.grid(row=1, column=0, padx=5, pady=5)
+# 创建按钮容器框架，放在root的第1行第0列，跨6列，居中显示
+button_frame = ttkb.Frame(root)
+button_frame.grid(row=1, column=0, columnspan=6, pady=5)
 
-pause_btn = tk.Button(root, text="暂停", width=10)
-pause_btn.grid(row=1, column=1, padx=5, pady=5)
+# 在button_frame里放置三个按钮，使用grid布局
+start_btn = ttkb.Button(
+    button_frame, text="开始执行", width=10, command=run_main_thread
+)
+pause_btn = ttkb.Button(button_frame, text="暂停", width=10, style="Outline.TButton")
+stop_btn = ttkb.Button(button_frame, text="终止", width=10, style="Outline.TButton")
 
-stop_btn = tk.Button(root, text="终止", width=10)
-stop_btn.grid(row=1, column=2, padx=5, pady=5)
+start_btn.grid(row=0, column=0, padx=10)
+pause_btn.grid(row=0, column=1, padx=10)
+stop_btn.grid(row=0, column=2, padx=10)
+
+# 让button_frame水平居中
+button_frame.columnconfigure((0, 1, 2), weight=1)
+
+# 让root窗口的列0扩展，保证整体布局自适应
+root.columnconfigure(0, weight=1)
+root.rowconfigure(2, weight=1)
 
 root.mainloop()
