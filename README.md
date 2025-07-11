@@ -3,12 +3,15 @@ GAMEAUTO
 ├── code  (脚本)
 │   ├── __init__.py  (表明当前是一个包,用于包之间的导入调用,勿删)
 │   └── auto_login.py  (自动登录脚本)
-├── app
+├── app   (页面)
 │   ├── __init__.py
 │   ├── home.py  (程序主页面)
 │   └── pages  (程序子页面)
 │       ├── __init__.py
-│       └── autoLogin.py  (自动登录页面)
+│       └── accLogin.py  (自动登录页面)
+├── data  (数据)
+│   ├── __init__.py
+│   ├── accounts.csv (自动登录账号)
 
 
 
@@ -21,7 +24,7 @@ venv\Scripts\Activate.ps1
 python code/auto_login.py   
 
 3.运行单个页面
-python -m app.pages.autoLogin
+python -m app.pages.accLogin 
 
 
 4.查看ttkbootstrap主题

@@ -6,6 +6,7 @@ debug/
 debug
 debug/ocr/
 app/__pycache__
+data/__pycache__
 code/__pycache__
 app/pages/__pycache__
 auto_login.log
@@ -15,3 +16,5 @@ logs
 logs/
 .logs
 
+data/accounts.csv
+accounts.csv
