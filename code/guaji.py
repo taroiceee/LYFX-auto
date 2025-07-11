@@ -10,7 +10,7 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()  
         # 窗口标题和固定大小
-        self.setWindowTitle("白梦霸王挂-打玉神器")
+        self.setWindowTitle("白梦霸王挂")
         self.setFixedSize(1800, 1000)
 
         # 主布局：水平分两栏
